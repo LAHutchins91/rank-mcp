@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.LAHutchins91/rank-mcp",
+  "title": "Rank by Ouroboros",
+  "description": "SEO answers from your own Google Search Console data for site owners, bloggers, small businesses, and freelancers.",
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/LAHutchins91/rank-mcp",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/LAHutchins91/rank-mcp/main/logo.jpg",
+      "mimeType": "image/jpeg",
+      "sizes": ["1024x1024"],
+      "theme": "dark"
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/LAHutchins91/rank-mcp",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://rank-mcp.vercel.app/mcp"
+    }
+  ]
+}
