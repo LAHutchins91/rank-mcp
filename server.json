@@ -3,21 +3,22 @@
   "name": "io.github.LAHutchins91/rank",
   "title": "Rank",
   "description": "Rank by Ouroboros: Google Search Console insights for AI assistants, over MCP.",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "websiteUrl": "https://rank.ouroborosapps.com",
   "repository": {
     "url": "https://github.com/LAHutchins91/rank-mcp",
     "source": "github"
   },
   "icons": [
     {
-      "src": "https://rank-mcp.vercel.app/logo.jpg",
+      "src": "https://rank.ouroborosapps.com/logo.jpg",
       "mimeType": "image/jpeg"
     }
   ],
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://rank-mcp.vercel.app/mcp"
+      "url": "https://rank.ouroborosapps.com/mcp"
     }
   ]
 }
