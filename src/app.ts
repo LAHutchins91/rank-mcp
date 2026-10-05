@@ -589,6 +589,10 @@ export function createApp(options: CreateAppOptions = {}) {
     }
   });
 
+  app.use((_req, res) => {
+    res.status(404).json({ error: "Not found." });
+  });
+
   app.use((error: unknown, _req: Request, res: Response, _next: express.NextFunction) => {
     if (res.headersSent) return;
     const tooLarge = typeof error === "object" && error !== null && "type" in error && (error as { type?: string }).type === "entity.too.large";

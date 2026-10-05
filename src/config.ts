@@ -29,7 +29,7 @@ export const MCP_BROWSER_ORIGINS = [
   "https://www.cursor.com"
 ] as const;
 
-export type StorageBackend = "memory" | "file" | "postgres";
+export type StorageBackend = "memory" | "file" | "postgres" | "blob";
 
 export type AppConfig = {
   appBaseUrl: string;
@@ -43,6 +43,7 @@ export type AppConfig = {
   stripeWebhookSecret: string;
   storageBackend: StorageBackend;
   storageFile: string;
+  storageBlobPath: string;
   databaseUrl: string;
   testHooks: boolean;
   nodeEnv: string;
@@ -73,8 +74,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error("RANK_TEST_HOOKS must not be set when NODE_ENV is production");
   }
   const storageBackend = env.STORAGE_BACKEND ?? "memory";
-  if (storageBackend !== "memory" && storageBackend !== "file" && storageBackend !== "postgres") {
-    throw new Error("STORAGE_BACKEND must be memory, file, or postgres");
+  if (storageBackend !== "memory" && storageBackend !== "file" && storageBackend !== "postgres" && storageBackend !== "blob") {
+    throw new Error("STORAGE_BACKEND must be memory, file, postgres, or blob");
   }
   return {
     appBaseUrl,
@@ -88,6 +89,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET ?? "",
     storageBackend,
     storageFile: env.STORAGE_FILE || "./data/rank-store.json",
+    storageBlobPath: env.STORAGE_BLOB_PATH || "rank/store.json",
     databaseUrl: env.DATABASE_URL ?? "",
     testHooks,
     nodeEnv

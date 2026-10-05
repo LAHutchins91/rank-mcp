@@ -176,8 +176,12 @@ describe("streamable HTTP", () => {
     expect(health.billingConfigured).toBe(true);
     expect(health.googleRedirectUri).toBe(googleRedirectUri("http://127.0.0.1:44721"));
     const logo = await fetch(`${base}/logo.jpg`);
+    expect(logo.status).toBe(200);
     expect(logo.headers.get("content-type")).toContain("image/jpeg");
     expect((await logo.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+    const sourceFile = await fetch(`${base}/package.json`);
+    expect(sourceFile.status).toBe(404);
+    expect(await sourceFile.text()).not.toContain("\"name\": \"rank-mcp\"");
     const html = await fetch(`${base}/`).then((response) => response.text());
     expect(html).toContain("Rank by Ouroboros");
     expect(html).toContain("/logo.jpg");

@@ -75,13 +75,14 @@ If the Google console asks for an authorized JavaScript origin, use the origin o
 
 ## Storage
 
-Trial state, Stripe customer ids, MCP OAuth clients and tokens, and the encrypted Google refresh token share one storage interface. Set `STORAGE_BACKEND`:
+Trial state, Stripe customer ids, MCP OAuth clients and tokens, pending Google sign-in, and the encrypted Google refresh token share one storage interface. Set `STORAGE_BACKEND`:
 
 | Backend | When | What it uses |
 | --- | --- | --- |
 | `memory` | local experiments and tests | data disappears when the process stops |
 | `file` | a single long-running server or Docker volume | `STORAGE_FILE` (default `./data/rank-store.json`) |
-| `postgres` | Vercel or more than one instance | `DATABASE_URL` |
+| `blob` | Vercel | one private Blob at `STORAGE_BLOB_PATH` (default `rank/store.json`) |
+| `postgres` | a Postgres database you already run | `DATABASE_URL` |
 
 Postgres uses one table, created on first use if it is missing:
 
@@ -94,7 +95,7 @@ CREATE TABLE IF NOT EXISTS rank_kv (
 );
 ```
 
-There is no second schema. Do not point this at a new database service unless you already have Postgres. Memory is not enough for a deployed server: a restart drops the refresh token and the trial.
+There is no second schema. Memory and file storage reset on Vercel, so production uses the Blob backend. The Blob document uses the same layout as the file store: collections of JSON records. OAuth authorization codes and pending Google sign-in state are records in that document, so a callback can land on a different serverless instance. Each write drops expired auth codes, pending sign-in sessions, access tokens, and refresh tokens. `BLOB_READ_WRITE_TOKEN` is injected when the Vercel Blob store is connected. Do not commit it.
 
 ## Billing
 
@@ -130,7 +131,7 @@ npm start
 
 ## Deploy
 
-Vercel: set the environment variables above, set `APP_BASE_URL` to the production origin, and set `STORAGE_BACKEND=postgres` with `DATABASE_URL`. `vercel.json` rewrites every path to the Node server. After the host is final, point `server.json` `remotes[0].url` at `https://YOUR_HOST/mcp` if it is not `https://rank-mcp.vercel.app/mcp`.
+Vercel: set `APP_BASE_URL` to `https://rank-mcp.vercel.app`, set `STORAGE_BACKEND=blob`, and connect a Blob store so Vercel injects `BLOB_READ_WRITE_TOKEN`. `vercel.json` sends every path to the Node function and bundles `logo.jpg` into that function. `/logo.jpg` and the app routes are served by the function. `/package.json` is not a static file. The remote in `server.json` is `https://rank-mcp.vercel.app/mcp`.
 
 The registry name is `io.github.LAHutchins91/rank-mcp`. The icon is `https://raw.githubusercontent.com/LAHutchins91/rank-mcp/main/logo.jpg`.
 
@@ -143,8 +144,10 @@ The registry name is `io.github.LAHutchins91/rank-mcp`. The icon is `https://raw
 | `GOOGLE_CLIENT_ID` | Google sign-in and Search Console |
 | `GOOGLE_CLIENT_SECRET` | Google token exchange |
 | `TOKEN_ENCRYPTION_KEY` | encrypting refresh tokens and signing the browser session |
-| `STORAGE_BACKEND` | `memory`, `file`, or `postgres` |
+| `STORAGE_BACKEND` | `memory`, `file`, `blob`, or `postgres` |
 | `STORAGE_FILE` | file backend path |
+| `STORAGE_BLOB_PATH` | blob pathname, default `rank/store.json` |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob read-write token, injected on Vercel |
 | `DATABASE_URL` | postgres backend |
 | `STRIPE_SECRET_KEY` | Checkout and the billing portal |
 | `STRIPE_PRICE_MONTHLY` | monthly Checkout price id |
