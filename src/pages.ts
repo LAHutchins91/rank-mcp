@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GOOGLE_SCOPES, googleRedirectUri, SERVER_NAME, type AppConfig } from "./config.js";
+import { GOOGLE_SCOPES, googleRedirectUri, SERVER_NAME, supportEmail, type AppConfig } from "./config.js";
 
 export function logoBytes() {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -85,6 +85,7 @@ input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(
     <a href="/connect">Connect</a>
     <a href="/account">Account</a>
     <a href="/privacy">Privacy</a>
+    <a href="/support">Support</a>
     <a href="/health">Health</a>
   </nav>
 </header>
@@ -93,6 +94,7 @@ input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(
   <span>${escapeHtml(SERVER_NAME)}</span>
   <a href="/connect">MCP ${escapeHtml(mcp)}</a>
   <a href="/terms">Terms</a>
+  <a href="/support">Support</a>
   <a href="https://github.com/LAHutchins91/rank-mcp">Source</a>
 </footer>
 </body>
@@ -267,3 +269,15 @@ export function consentPage(config: AppConfig, input: { clientName: string; redi
 export function messagePage(config: AppConfig, title: string, message: string) {
   return page(config, title, `<section><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p><p><a href="/account">Back to account</a></p></section>`, false);
 }
+
+export function supportPage(config: AppConfig) {
+  const email = supportEmail();
+  return page(config, `Support · ${SERVER_NAME}`, `
+<section>
+  <h1>Support</h1>
+  <p>Questions about Rank by Ouroboros, billing, privacy, or connecting Google Search Console can go to <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>.</p>
+  <p>Do not include passwords, OAuth tokens, API keys, or payment card details in email.</p>
+  <p class="note">A new account gets a 14-day trial, then Pro. Checkout shows the billing terms.</p>
+</section>`);
+}
+

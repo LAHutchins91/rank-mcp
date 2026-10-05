@@ -23,6 +23,7 @@ import {
   logoBytes,
   messagePage,
   privacyPage,
+  supportPage,
   termsPage
 } from "./pages.js";
 import { encryptString, pkceS256, randomToken, readSignedPayload, safeEqual, sha256, signPayload } from "./secrets.js";
@@ -259,6 +260,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.get("/connect", (_req, res) => res.type("html").send(connectPage(config)));
   app.get("/privacy", (_req, res) => res.type("html").send(privacyPage(config)));
   app.get("/terms", (_req, res) => res.type("html").send(termsPage(config)));
+  app.get("/support", (_req, res) => res.type("html").send(supportPage(config)));
 
   app.get("/account", async (req, res) => {
     const user = await readSession(req);
