@@ -159,3 +159,7 @@ The registry name is `io.github.LAHutchins91/rank`. The icon is `https://rank-mc
 ## License
 
 MIT. Copyright (c) 2026 Lawrence Hutchins.
+
+---
+
+More from Ouroboros: https://ouroborosapps.com
