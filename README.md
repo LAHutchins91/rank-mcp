@@ -6,6 +6,13 @@ The assistant can list verified properties, read top queries and pages, follow c
 
 A 14-day trial starts when you connect Google. After that, Pro is a Stripe subscription. The amount is shown at Stripe Checkout, not in this README or the product.
 
+## Hosted server
+
+- MCP server URL: `https://rank.ouroborosapps.com/mcp` (Streamable HTTP, OAuth sign-in)
+- Docs: https://ouroborosapps.com/docs/rank
+- Status: early access. Paste the URL into Claude, Cursor, Grok, or ChatGPT developer mode.
+- Registry name: `io.github.LAHutchins91/rank`
+
 ## Connect an assistant
 
 The MCP address is `https://YOUR_HOST/mcp` after deploy, or `http://127.0.0.1:44721/mcp` when you run it locally. Choose OAuth and leave the client id and secret empty. Rank supports dynamic client registration and PKCE.
