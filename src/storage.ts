@@ -229,6 +229,9 @@ export function createBlobStore(path: string, client: BlobStoreClient = defaultB
         return;
       } catch (error) {
         lastError = error;
+        const name = error instanceof Error ? error.name : typeof error;
+        const message = error instanceof Error ? error.message.slice(0, 300) : "";
+        console.error(JSON.stringify({ event: "storage_write_failed", attempt, name, message }));
         if (!isPreconditionFailed(error) || attempt === BLOB_WRITE_ATTEMPTS - 1) throw error;
       }
     }

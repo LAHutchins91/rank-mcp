@@ -4,11 +4,11 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { GOOGLE_TOKEN_ENDPOINT, GOOGLE_SCOPES, googleRedirectUri } from "../src/config.js";
 import { decryptString } from "../src/secrets.js";
-import { createMemoryStore } from "../src/storage.js";
+import { createMemoryStore, type KvStore } from "../src/storage.js";
 import { TOOL_NAMES } from "../src/tools.js";
 
 const clock = { time: Date.parse("2026-04-01T00:00:00.000Z") };
@@ -297,5 +297,61 @@ describe("streamable HTTP", () => {
       })
     });
     expect(tokenResponse.status).toBe(400);
+  });
+});
+
+describe("route errors", () => {
+  it("returns 500 and logs the error name when store.put throws", async () => {
+    class StoreWriteError extends Error {
+      constructor() {
+        super("blob put failed");
+        this.name = "StoreWriteError";
+      }
+    }
+    const failingStore: KvStore = {
+      async get() {
+        return null;
+      },
+      async put() {
+        throw new StoreWriteError();
+      },
+      async delete() {},
+      async list() {
+        return [];
+      }
+    };
+    const failingApp = createApp({
+      env: {
+        NODE_ENV: "test",
+        APP_BASE_URL: "http://127.0.0.1:44721",
+        TOKEN_ENCRYPTION_KEY: encryptionKey,
+        GOOGLE_CLIENT_ID: "google-client",
+        GOOGLE_CLIENT_SECRET: "google-secret"
+      },
+      store: failingStore,
+      now: () => new Date(clock.time)
+    });
+    const failingServer = failingApp.listen(0, "127.0.0.1");
+    await once(failingServer, "listening");
+    const address = failingServer.address() as AddressInfo;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/google/start?return=/account&code=secret-token`, { redirect: "manual" });
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({ error: "Something went wrong. Try again in a moment." });
+      expect(spy).toHaveBeenCalledTimes(1);
+      const logged = JSON.parse(String(spy.mock.calls[0]?.[0])) as { event: string; method: string; path: string; name: string; message: string };
+      expect(logged).toEqual({
+        event: "route_error",
+        method: "GET",
+        path: "/google/start",
+        name: "StoreWriteError",
+        message: "blob put failed"
+      });
+      expect(String(spy.mock.calls[0]?.[0])).not.toMatch(/secret-token|stack|authorization/i);
+    } finally {
+      spy.mockRestore();
+      await new Promise<void>((resolve, reject) => failingServer.close((error) => error ? reject(error) : resolve()));
+    }
   });
 });
