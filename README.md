@@ -131,9 +131,9 @@ npm start
 
 ## Deploy
 
-Vercel: set `APP_BASE_URL` to `https://rank-mcp.vercel.app`, set `STORAGE_BACKEND=blob`, and connect a Blob store so Vercel injects `BLOB_READ_WRITE_TOKEN`. `vercel.json` sends every path to the Node function and bundles `logo.jpg` into that function. `/logo.jpg` and the app routes are served by the function. `/package.json` is not a static file. The remote in `server.json` is `https://rank-mcp.vercel.app/mcp`.
+Vercel: set `APP_BASE_URL` to `https://rank.ouroborosapps.com`, set `STORAGE_BACKEND=blob`, and connect a Blob store so Vercel injects `BLOB_READ_WRITE_TOKEN`. `vercel.json` sends every path to the Node function and bundles `logo.jpg` into that function. `/logo.jpg` and the app routes are served by the function. `/package.json` is not a static file. The remote in `server.json` is `https://rank.ouroborosapps.com/mcp`.
 
-The registry name is `io.github.LAHutchins91/rank`. The icon is `https://rank-mcp.vercel.app/logo.jpg`.
+The registry name is `io.github.LAHutchins91/rank`. The icon is `https://rank.ouroborosapps.com/logo.jpg`.
 
 ## Environment variables
 
