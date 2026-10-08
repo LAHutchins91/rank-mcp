@@ -1,7 +1,10 @@
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { once } from "node:events";
 import type { Server } from "node:http";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -10,6 +13,10 @@ import { GOOGLE_TOKEN_ENDPOINT, GOOGLE_SCOPES, googleRedirectUri } from "../src/
 import { decryptString } from "../src/secrets.js";
 import { createMemoryStore, type KvStore } from "../src/storage.js";
 import { TOOL_NAMES } from "../src/tools.js";
+
+const PUBLIC_CONTACT = "ouroborosplugins@gmail.com";
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const toolsListFixture = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures/tools-list.json"), "utf8")) as unknown[];
 
 const clock = { time: Date.parse("2026-04-01T00:00:00.000Z") };
 const encryptionKey = "http-test-encryption-key";
@@ -169,7 +176,43 @@ async function callTool(accessToken: string, name: string, args: Record<string, 
   }
 }
 
+describe("public legal pages", () => {
+  it("returns privacy and support with only the public contact email", async () => {
+    for (const path of ["/privacy", "/support"]) {
+      const response = await fetch(`${base}${path}`);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(PUBLIC_CONTACT);
+      expect(html).toContain("Rank by Ouroboros Apps");
+      expect(html).toContain("https://ouroborosapps.com");
+      const emails = html.match(EMAIL_RE) ?? [];
+      expect(emails.length).toBeGreaterThan(0);
+      expect([...new Set(emails.map((email) => email.toLowerCase()))]).toEqual([PUBLIC_CONTACT]);
+      expect(html).not.toMatch(/\$\d/);
+      expect(html).not.toContain("lawrence.a.hutchins@gmail.com");
+    }
+    const privacy = await fetch(`${base}/privacy`).then((response) => response.text());
+    expect(privacy).toContain("myaccount.google.com/permissions");
+    expect(privacy).toContain("Children");
+    expect(privacy).toContain("within 30 days");
+  });
+});
+
 describe("streamable HTTP", () => {
+  it("keeps tools/list at the recorded 9 tools and schemas", async () => {
+    const transport = new StreamableHTTPClientTransport(new URL(`${base}/mcp`));
+    const client = new Client({ name: "rank-tools-snapshot", version: "0.0.0" });
+    await client.connect(transport);
+    try {
+      const listed = await client.listTools();
+      const tools = [...listed.tools].sort((a, b) => a.name.localeCompare(b.name));
+      expect(tools).toHaveLength(9);
+      expect(tools).toEqual(toolsListFixture);
+    } finally {
+      await client.close();
+    }
+  });
+
   it("serves health, the logo, and a price-free landing page", async () => {
     const health = await fetch(`${base}/health`).then((response) => response.json()) as { ok: boolean; billingConfigured: boolean; googleRedirectUri: string };
     expect(health.ok).toBe(true);
