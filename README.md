@@ -160,8 +160,13 @@ The registry name is `io.github.LAHutchins91/rank`. The icon is `https://rank.ou
 | `STRIPE_PRICE_MONTHLY` | monthly Checkout price id |
 | `STRIPE_PRICE_YEARLY` | yearly Checkout price id |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signatures |
+| `SUPPORT_EMAIL` | public contact on the site; default `ouroborosplugins@gmail.com` |
 
 `RANK_TEST_HOOKS=1` lets tests complete MCP login without Google. The process refuses to start when that is set and `NODE_ENV=production`.
+
+## Support
+
+Privacy questions, account deletion, and a copy of the account record go to ouroborosplugins@gmail.com. Do not send passwords, OAuth tokens, API keys, or payment card details. The same address is on the privacy and support pages. To disconnect Google, revoke Rank at https://myaccount.google.com/permissions.
 
 ## License
 

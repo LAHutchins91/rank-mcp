@@ -26,6 +26,7 @@ export function escapeHtml(value: string) {
 
 function page(config: AppConfig, title: string, body: string, index = true) {
   const mcp = `${config.appBaseUrl}/mcp`;
+  const email = supportEmail();
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -94,7 +95,10 @@ input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(
   <span>${escapeHtml(SERVER_NAME)}</span>
   <a href="/connect">MCP ${escapeHtml(mcp)}</a>
   <a href="/terms">Terms</a>
+  <a href="/privacy">Privacy</a>
   <a href="/support">Support</a>
+  <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>
+  <a href="https://ouroborosapps.com">ouroborosapps.com</a>
   <a href="https://github.com/LAHutchins91/rank-mcp">Source</a>
 </footer>
 </body>
@@ -139,6 +143,7 @@ export function landingPage(config: AppConfig) {
   <h2>14 days, then Pro</h2>
   <p>Connecting Google starts a 14-day trial. After that, Pro keeps the tools available. Monthly and yearly plans open in Stripe Checkout, which is where the amount is shown.</p>
   <a class="btn" href="/account">Open account</a>
+  <p class="note">Privacy, deletion, and export requests go to <a href="mailto:${escapeHtml(supportEmail())}">${escapeHtml(supportEmail())}</a>.</p>
 </section>`);
 }
 
@@ -167,13 +172,50 @@ export function connectPage(config: AppConfig) {
 }
 
 export function privacyPage(config: AppConfig) {
-  return page(config, `Privacy · ${SERVER_NAME}`, `
+  const email = supportEmail();
+  const mailto = `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>`;
+  return page(config, "Privacy policy · Rank by Ouroboros Apps", `
 <section>
-  <h1>Privacy</h1>
-  <p>Rank reads Search Console for the Google account you connect. The Google scope is read-only. Rank cannot change your site, submit sitemaps, or edit Search Console users.</p>
-  <p>The Google refresh token is encrypted before it is written to the storage backend. The encryption key stays in the server environment. Access tokens used to call Google are kept in memory for that process and are not written to storage.</p>
-  <p>Rank also stores your Google account id, email address, trial start, and Stripe customer and subscription ids so it can tell whether the trial or Pro subscription is active.</p>
-  <p>Search Console numbers shown to your assistant are the figures the API returned for the request you made. Rank does not sell that data and does not add estimated traffic.</p>
+  <h1>Privacy policy</h1>
+  <p>Effective October 8, 2026. Rank by Ouroboros Apps is operated by Ouroboros Apps (Lawrence Hutchins). The product site is <a href="https://ouroborosapps.com">ouroborosapps.com</a>. Privacy, deletion, and export requests go to ${mailto}.</p>
+
+  <h2>Information we process</h2>
+  <p>Rank reads Google Search Console for the Google account you connect. The Google scope is read-only (<code>openid</code>, <code>https://www.googleapis.com/auth/userinfo.email</code>, and <code>https://www.googleapis.com/auth/webmasters.readonly</code>). Rank cannot change your site, submit sitemaps, or edit Search Console users.</p>
+  <p>When you connect Google, Rank stores an account record: the Google account id (the OpenID subject), the email address Google returns, trial start and end, and subscription status. The Search Console refresh token is encrypted with AES-256-GCM before it is written. The encryption key stays in the server environment. Rank does not store the refresh token in plaintext.</p>
+  <p>Google access tokens used to call Search Console are kept in memory for that server process and are not written to storage. Search Console responses (properties, queries, pages, clicks, impressions, CTR, position, and URL Inspection results) are not saved as a database of your reports. Rank returns the figures the API sent for the request you made and does not add estimated traffic.</p>
+  <p>Connecting an assistant stores OAuth records for that connection: a registered client id and redirect URIs, a short-lived authorization code, and hashes of the MCP access token and refresh token. A signed browser cookie named <code>rank_session</code> keeps you signed in on this site. Pending Google and assistant sign-in records hold the redirect and PKCE challenge until you finish or the record expires.</p>
+  <p>If you subscribe, Rank stores the Stripe customer id, subscription id, status, current period end, and whether the subscription cancels at period end. Stripe receives your account id and, until a customer exists, the email on the account. Rank does not store payment card numbers.</p>
+  <p>Rank does not receive every assistant conversation. Tools receive only the arguments the assistant submits for that call. Do not include passwords, payment card details, or unrelated personal information in those arguments.</p>
+
+  <h2>Why and where</h2>
+  <p>We use this information to provide Rank, authenticate you, call Search Console on your behalf, tell whether the trial or Pro subscription is active, respond to support, prevent abuse, and meet legal obligations. We do not sell Search Console data or account data, and we do not use it to train our own models.</p>
+  <p>Google provides sign-in and the Search Console API. Stripe processes subscription payments. Vercel hosts the service. The hosted server keeps account and OAuth records in a private Vercel Blob. A deployment set to the file or Postgres backend stores those same records in that file or database. Connected MCP clients, including ChatGPT, Claude, Gemini, Grok, Cursor, and other hosts you authorize, receive the Search Console results their authorized tools request and apply their own privacy terms. Service providers may process information outside your country. No advertising trackers are included.</p>
+
+  <h2>Control and retention</h2>
+  <p>Rank keeps each category for the period below. Where the software has no deletion job, the period is the policy we follow when you write to ${mailto}.</p>
+  <h3>Account and OAuth identity</h3>
+  <p>The Google account id, email, trial dates, and subscription status stay until you request account deletion. We delete that record within 30 days of the request. There is no shorter automatic schedule in the software.</p>
+  <h3>Google Search Console tokens</h3>
+  <p>The encrypted refresh token stays with the account record and is deleted with it, within 30 days of an account-deletion request. Google access tokens live only in process memory, follow the expiry Google returns (Rank treats a missing expiry as one hour), and are not reused in the last minute of that window. They are gone when they expire or when the process stops. They are not written to the store.</p>
+  <h3>Cached and short-lived connection data</h3>
+  <p>Search Console report bodies are not cached in Rank's store. Authorization codes and pending sign-in records last 10 minutes. MCP access-token hashes last 1 hour. MCP refresh-token hashes last 30 days, and the previous hash is deleted when a new refresh token is issued. Rank refuses these records after they expire. On the Vercel Blob store, each write also drops expired authorization codes, pending sign-in records, access tokens, and refresh tokens. The browser session cookie lasts 30 days. Registered MCP client records have no expiry in the software; we remove a client record within 30 days of a deletion request that identifies it.</p>
+  <h3>Billing records</h3>
+  <p>Rank's copies of the Stripe customer id, subscription id, and subscription status are deleted with the account, within 30 days of an account-deletion request. Stripe may keep its own payment records for accounting, tax, and dispute handling. Rank does not store complete card numbers. This site does not print a charge amount. Checkout is where the billing terms appear.</p>
+
+  <h2>Deletion and export</h2>
+  <p>Email ${mailto} to request a copy of your account or to delete it. Say whether you want export, deletion, or both, and include the Google email on the account. An export is the account record we hold: Google account id, email, trial and subscription status, and whether a Search Console refresh token is stored. We do not email the refresh token or payment card data. Deletion removes the live account record, the encrypted refresh token, and the MCP tokens stored for that account. Provider backups may persist according to the provider's own retention and are not an instant erasure guarantee. Disconnecting Google, canceling Stripe, and deleting the Rank account are separate steps.</p>
+
+  <h2>Disconnect Google</h2>
+  <p>Revoke Rank's access at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. That stops Google from honoring the refresh token. Then email ${mailto} if you also want the encrypted token and account record deleted. Revoking access at Google does not by itself delete the stored record.</p>
+
+  <h2>Children's privacy</h2>
+  <p>Rank is not directed to children under 13, and we do not knowingly collect personal information from them. If you believe a child has connected an account, email ${mailto} and we will delete it.</p>
+
+  <h2>Security and changes</h2>
+  <p>Refresh tokens are encrypted before storage, the session cookie is HttpOnly, and MCP access and refresh tokens are stored as hashes. No service can promise absolute security. We publish changes to this policy on this page with an updated effective date. If local privacy law gives you additional rights, you may exercise them by emailing ${mailto}.</p>
+
+  <h2>Contact</h2>
+  <p>Rank by Ouroboros Apps. Site: <a href="https://ouroborosapps.com">ouroborosapps.com</a>. Privacy, support, deletion, and export: ${mailto}.</p>
 </section>`);
 }
 
@@ -181,7 +223,8 @@ export function termsPage(config: AppConfig) {
   return page(config, `Terms · ${SERVER_NAME}`, `
 <section>
   <h1>Terms</h1>
-  <p>Rank by Ouroboros is published by Lawrence Hutchins. The 14-day trial starts when you connect Google. After it ends, Search Console tools require a Pro subscription. Stripe Checkout shows the amount before you pay. You can cancel from the billing portal on the account page after a subscription exists.</p>
+  <p>Rank by Ouroboros Apps is published by Lawrence Hutchins. The product site is <a href="https://ouroborosapps.com">ouroborosapps.com</a>. Questions, privacy requests, deletion, and export go to <a href="mailto:${escapeHtml(supportEmail())}">${escapeHtml(supportEmail())}</a>. The <a href="/privacy">privacy policy</a> describes what Rank stores.</p>
+  <p>The 14-day trial starts when you connect Google. After it ends, Search Console tools require a Pro subscription. Stripe Checkout shows the amount before you pay. You can cancel from the billing portal on the account page after a subscription exists. Canceling a subscription does not by itself delete the account.</p>
   <p>Search Console data belongs to the Google account that authorized it. You are responsible for connecting an account you are allowed to use. Rank reports API results and can be wrong when Search Console is still revising recent days.</p>
   <p>The software is provided under the MIT license, without warranty.</p>
 </section>`);
@@ -272,11 +315,12 @@ export function messagePage(config: AppConfig, title: string, message: string) {
 
 export function supportPage(config: AppConfig) {
   const email = supportEmail();
-  return page(config, `Support · ${SERVER_NAME}`, `
+  return page(config, "Support · Rank by Ouroboros Apps", `
 <section>
   <h1>Support</h1>
-  <p>Questions about Rank by Ouroboros, billing, privacy, or connecting Google Search Console can go to <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>.</p>
-  <p>Do not include passwords, OAuth tokens, API keys, or payment card details in email.</p>
+  <p>Rank by Ouroboros Apps. Questions about the product, billing, privacy, account deletion, or a copy of your account go to <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>. The site is <a href="https://ouroborosapps.com">ouroborosapps.com</a>.</p>
+  <p>Include the Google email on the account, and say whether you want help, deletion, or an export. Do not include passwords, OAuth tokens, API keys, or payment card details.</p>
+  <p>To disconnect Google Search Console, revoke Rank at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. The <a href="/privacy">privacy policy</a> describes what is stored and how long it is kept.</p>
   <p class="note">A new account gets a 14-day trial, then Pro. Checkout shows the billing terms.</p>
 </section>`);
 }

@@ -104,9 +104,9 @@ export function googleOAuthConfigured(config: AppConfig) {
   return Boolean(config.googleClientId && config.googleClientSecret);
 }
 
-/** Public support address shown on /support. Override with SUPPORT_EMAIL. */
+/** Public support address shown on privacy, support, terms, and the site footer. Override with SUPPORT_EMAIL. */
 export function supportEmail() {
   const fromEnv = (process.env.SUPPORT_EMAIL ?? "").trim();
-  return fromEnv || "lawrence.a.hutchins@gmail.com";
+  return fromEnv || "ouroborosplugins@gmail.com";
 }
 
