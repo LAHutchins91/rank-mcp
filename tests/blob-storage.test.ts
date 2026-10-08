@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { BlobNotFoundError, BlobPreconditionFailedError } from "@vercel/blob";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
-import { createBlobStore, type BlobStoreClient } from "../src/storage.js";
+import { BlobStaleReadError, createBlobStore, type BlobStoreClient } from "../src/storage.js";
 
 type Stored = { body: string | null; etag: string };
 
@@ -10,17 +10,25 @@ function jsonStream(body: string) {
   return new Blob([body]).stream();
 }
 
+const BLOB_URL = "https://store.private.blob.vercel-storage.com/rank/store.json";
+
 function mockBlob(initial?: Stored) {
   const state: Stored = initial ?? { body: null, etag: "" };
+  // Simulates what a GET returns: by default the current bytes and etag, or a stale CDN copy, or a quoted ETag header.
+  let served: ((pathname: string) => Stored) | null = null;
   const gets: Array<{ pathname: string; options: { access: string; useCache: boolean } }> = [];
   const puts: Array<{ pathname: string; body: string; options: { access: string; allowOverwrite: boolean; addRandomSuffix: boolean; contentType: string; ifMatch?: string } }> = [];
   let failPuts = 0;
   let onFailedPut: (() => void) | null = null;
   const client: BlobStoreClient = {
+    async head() {
+      return state.body === null ? null : { etag: state.etag, url: BLOB_URL };
+    },
     async get(pathname, options) {
       gets.push({ pathname, options });
       if (state.body === null) return null;
-      return { stream: jsonStream(state.body), blob: { etag: state.etag } };
+      const view = served ? served(pathname) : state;
+      return { stream: jsonStream(view.body ?? ""), blob: { etag: view.etag } };
     },
     async put(pathname, body, options) {
       puts.push({ pathname, body, options });
@@ -40,6 +48,9 @@ function mockBlob(initial?: Stored) {
     gets,
     puts,
     client,
+    serve(fn: (pathname: string) => Stored) {
+      served = fn;
+    },
     failNext(count: number, effect?: () => void) {
       failPuts = count;
       onFailedPut = effect ?? null;
@@ -73,6 +84,9 @@ describe("blob storage", () => {
 
   it("treats BlobNotFoundError as an empty document", async () => {
     const client: BlobStoreClient = {
+      async head() {
+        return null;
+      },
       async get() {
         throw new BlobNotFoundError();
       },
@@ -142,6 +156,40 @@ describe("blob storage", () => {
     const store = createBlobStore("rank/store.json", blob.client);
     await expect(store.put("users", "me", { id: "me" })).rejects.toBeInstanceOf(BlobPreconditionFailedError);
     expect(blob.puts).toHaveLength(5);
+  });
+
+  it("writes with the API etag when the GET ETag header is quoted", async () => {
+    const blob = mockBlob({ body: JSON.stringify({ users: { other: { id: "other" } } }), etag: "etag-seed" });
+    blob.serve(() => ({ body: blob.state.body, etag: `"${blob.state.etag}"` }));
+    const store = createBlobStore("rank/store.json", blob.client);
+    await store.put("pending_auth", "signin", { kind: "account" });
+    expect(blob.puts).toHaveLength(1);
+    expect(blob.puts[0]?.options.ifMatch).toBe("etag-seed");
+    const saved = JSON.parse(blob.state.body ?? "{}") as Record<string, Record<string, unknown>>;
+    expect(saved.users?.other).toEqual({ id: "other" });
+    expect(saved.pending_auth?.signin).toEqual({ kind: "account" });
+  });
+
+  it("re-reads a versioned URL when the plain GET is a stale cached copy", async () => {
+    const stale: Stored = { body: JSON.stringify({ users: {} }), etag: "etag-old" };
+    const blob = mockBlob({ body: JSON.stringify({ users: { other: { id: "other" } } }), etag: "etag-new" });
+    blob.serve((pathname) => (pathname.includes("?v=") ? blob.state : stale));
+    const store = createBlobStore("rank/store.json", blob.client);
+    await store.put("users", "me", { id: "me" });
+    expect(blob.gets[1]?.pathname).toBe(`${BLOB_URL}?v=etag-new`);
+    expect(blob.puts).toHaveLength(1);
+    expect(blob.puts[0]?.options.ifMatch).toBe("etag-new");
+    const saved = JSON.parse(blob.state.body ?? "{}") as { users: Record<string, { id: string }> };
+    expect(saved.users.other?.id).toBe("other");
+    expect(saved.users.me?.id).toBe("me");
+  });
+
+  it("refuses to write when every read is stale", async () => {
+    const blob = mockBlob({ body: "{}", etag: "etag-new" });
+    blob.serve(() => ({ body: "{}", etag: "etag-old" }));
+    const store = createBlobStore("rank/store.json", blob.client);
+    await expect(store.put("users", "me", { id: "me" })).rejects.toBeInstanceOf(BlobStaleReadError);
+    expect(blob.puts).toHaveLength(0);
   });
 
   it("accepts the blob backend and the default pathname", () => {

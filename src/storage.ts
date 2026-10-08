@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { BlobNotFoundError, BlobPreconditionFailedError, get, put } from "@vercel/blob";
+import { BlobNotFoundError, BlobPreconditionFailedError, get, head, put } from "@vercel/blob";
 import pg from "pg";
 import type { AppConfig } from "./config.js";
 
@@ -143,8 +143,18 @@ export function createPostgresStore(databaseUrl: string): KvStore {
 /** Auth codes, Google sign-in sessions, and issued MCP tokens. Users are kept. */
 const EXPIRING_COLLECTIONS = ["auth_codes", "pending_auth", "access_tokens", "refresh_tokens"] as const;
 const BLOB_WRITE_ATTEMPTS = 5;
+const BLOB_FRESH_READ_ATTEMPTS = 3;
+
+/** Thrown when the bytes we can read never match the version Blob reports as current. */
+export class BlobStaleReadError extends Error {
+  constructor() {
+    super("Blob read did not match the current blob version.");
+    this.name = "BlobStaleReadError";
+  }
+}
 
 export interface BlobStoreClient {
+  head(pathname: string): Promise<{ etag: string; url: string } | null>;
   get(pathname: string, options: { access: "private"; useCache: false }): Promise<{
     stream: ReadableStream<Uint8Array> | null;
     blob: { etag: string };
@@ -159,6 +169,15 @@ export interface BlobStoreClient {
 }
 
 const defaultBlobClient: BlobStoreClient = {
+  head: async (pathname) => {
+    try {
+      const meta = await head(pathname);
+      return { etag: meta.etag, url: meta.url };
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  },
   get: (pathname, options) => get(pathname, options),
   put: (pathname, body, options) => put(pathname, body, options)
 };
@@ -169,6 +188,12 @@ function isNotFound(error: unknown) {
 
 function isPreconditionFailed(error: unknown) {
   return error instanceof BlobPreconditionFailedError || (error instanceof Error && error.name === "BlobPreconditionFailedError");
+}
+
+/** Compare a GET response ETag header with the API etag: ignore a weak prefix and surrounding quotes. */
+function sameEtag(a: string, b: string) {
+  const normalize = (value: string) => value.trim().replace(/^W\//, "").replace(/^"(.*)"$/, "$1");
+  return normalize(a) === normalize(b);
 }
 
 function removeExpiredDocuments(data: FileShape, nowMs: number) {
@@ -192,10 +217,10 @@ export function createBlobStore(path: string, client: BlobStoreClient = defaultB
     chain = run.then(() => undefined, () => undefined);
     return run;
   };
-  const readAll = async (): Promise<{ data: FileShape; etag?: string }> => {
+  const readAll = async (source: string = path): Promise<{ data: FileShape; etag?: string }> => {
     let result: Awaited<ReturnType<BlobStoreClient["get"]>>;
     try {
-      result = await client.get(path, { access: "private", useCache: false });
+      result = await client.get(source, { access: "private", useCache: false });
     } catch (error) {
       if (isNotFound(error)) return { data: {} };
       throw error;
@@ -209,6 +234,23 @@ export function createBlobStore(path: string, client: BlobStoreClient = defaultB
     const data = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
     return { data, etag };
   };
+  // Writes are conditional on the etag from head(), which comes from the Blob API rather than the CDN.
+  // The bytes must belong to that same version, otherwise we would overwrite newer data with a stale copy.
+  const readForWrite = async (): Promise<{ data: FileShape; etag?: string }> => {
+    for (let attempt = 0; attempt < BLOB_FRESH_READ_ATTEMPTS; attempt++) {
+      const meta = await client.head(path);
+      if (!meta) return { data: {} };
+      let source = path;
+      if (attempt > 0) {
+        const versioned = new URL(meta.url);
+        versioned.searchParams.set("v", meta.etag);
+        source = versioned.toString();
+      }
+      const { data, etag } = await readAll(source);
+      if (etag !== undefined && sameEtag(etag, meta.etag)) return { data, etag: meta.etag };
+    }
+    throw new BlobStaleReadError();
+  };
   const writeAll = async (data: FileShape, etag?: string) => {
     await client.put(path, JSON.stringify(data), {
       access: "private",
@@ -221,7 +263,7 @@ export function createBlobStore(path: string, client: BlobStoreClient = defaultB
   const commit = async (change: (data: FileShape) => void) => {
     let lastError: unknown;
     for (let attempt = 0; attempt < BLOB_WRITE_ATTEMPTS; attempt++) {
-      const { data, etag } = await readAll();
+      const { data, etag } = await readForWrite();
       change(data);
       removeExpiredDocuments(data, Date.now());
       try {
