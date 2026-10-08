@@ -79,6 +79,7 @@ export function buildCheckoutParams(config: AppConfig, user: UserRecord, plan: "
   if (!config.stripeSecretKey || !price) throw new RankError("Billing is not configured on this server.", "billing_not_configured", 503);
   const params = new URLSearchParams();
   params.set("mode", "subscription");
+  params.set("automatic_tax[enabled]", "true");
   params.set("line_items[0][price]", price);
   params.set("line_items[0][quantity]", "1");
   params.set("client_reference_id", user.id);
@@ -88,8 +89,10 @@ export function buildCheckoutParams(config: AppConfig, user: UserRecord, plan: "
   params.set("cancel_url", `${config.appBaseUrl}/account?checkout=cancelled`);
   const trialDays = remainingTrialDays(user, now);
   if (trialDays) params.set("subscription_data[trial_period_days]", String(trialDays));
-  if (user.stripeCustomerId) params.set("customer", user.stripeCustomerId);
-  else if (user.email) params.set("customer_email", user.email);
+  if (user.stripeCustomerId) {
+    params.set("customer", user.stripeCustomerId);
+    params.set("customer_update[address]", "auto");
+  } else if (user.email) params.set("customer_email", user.email);
   return params;
 }
 
