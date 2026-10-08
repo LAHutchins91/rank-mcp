@@ -100,7 +100,7 @@ export function createRankServer(deps: ToolDeps | null) {
     name: SERVER_NAME,
     version: SERVER_VERSION
   }, {
-    instructions: "Rank by Ouroboros answers SEO questions from the user's own Google Search Console account. Report only clicks, impressions, ctr, and position that a tool returned. ctr is a fraction from 0 to 1. Do not estimate traffic, fill missing days with zeros, or invent rankings. If a tool says the trial ended or Google is not connected, send the user to the URL in the tool result."
+    instructions: `${SERVER_NAME} answers SEO questions from the user's own Google Search Console account. Report only clicks, impressions, ctr, and position that a tool returned. ctr is a fraction from 0 to 1. Do not estimate traffic, fill missing days with zeros, or invent rankings. If a tool says the trial ended or Google is not connected, send the user to the URL in the tool result.`
   });
   for (const definition of definitions) {
     server.registerTool(definition.name, {

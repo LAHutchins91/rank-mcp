@@ -1,4 +1,4 @@
-export const SERVER_NAME = "Rank by Ouroboros";
+export const SERVER_NAME = "Rank by Ouroboros Apps";
 export const SERVER_VERSION = "0.1.0";
 export const MCP_SCOPE = "rank";
 export const TRIAL_MS = 14 * 24 * 60 * 60 * 1000;

@@ -110,7 +110,7 @@ export function landingPage(config: AppConfig) {
 <section class="hero">
   <img src="/logo.jpg" width="280" height="280" alt="Rank logo: a green ouroboros around a rising bar chart">
   <div>
-    <h1>Rank by Ouroboros</h1>
+    <h1>${escapeHtml(SERVER_NAME)}</h1>
     <p class="lede">Ask your assistant what Search Console already knows: the queries, pages, clicks, impressions, CTR, and average position for the sites you verified.</p>
     <div class="actions">
       <a class="btn" href="/connect">Connect an assistant</a>

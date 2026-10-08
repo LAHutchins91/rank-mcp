@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "Rank by Ouroboros — SEO answers from your Google Search Console data over MCP.",
+  "description": "Rank by Ouroboros Apps — SEO answers from your Google Search Console data over MCP.",
   "scripts": {
     "dev": "tsx src/server.ts",
     "build": "tsc -p tsconfig.json",

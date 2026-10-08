@@ -226,7 +226,7 @@ describe("streamable HTTP", () => {
     expect(sourceFile.status).toBe(404);
     expect(await sourceFile.text()).not.toContain("\"name\": \"rank-mcp\"");
     const html = await fetch(`${base}/`).then((response) => response.text());
-    expect(html).toContain("Rank by Ouroboros");
+    expect(html).toContain("Rank by Ouroboros Apps");
     expect(html).toContain("/logo.jpg");
     expect(html).not.toMatch(/\$\d/);
     const connect = await fetch(`${base}/connect`).then((response) => response.text());

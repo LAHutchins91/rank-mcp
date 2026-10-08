@@ -1,6 +1,6 @@
-# Rank by Ouroboros
+# Rank by Ouroboros Apps
 
-Rank by Ouroboros answers SEO questions from the Google Search Console account you connect. It is for site owners, bloggers, small businesses, and SEO freelancers who want those numbers inside ChatGPT, Claude, Gemini, Grok, Cursor, or any other MCP client that speaks Streamable HTTP and OAuth.
+Rank by Ouroboros Apps answers SEO questions from the Google Search Console account you connect. It is for site owners, bloggers, small businesses, and SEO freelancers who want those numbers inside ChatGPT, Claude, Gemini, Grok, Cursor, or any other MCP client that speaks Streamable HTTP and OAuth.
 
 The assistant can list verified properties, read top queries and pages, follow clicks, impressions, CTR, and average position over time, compare two periods, find queries with high impressions and low CTR, see pages that dropped, and check URL Inspection status. Every metric comes from the Search Console API response. Rank does not estimate traffic or fill in days the API left out. CTR stays the fraction Search Console returned (0.02 is 2%).
 
