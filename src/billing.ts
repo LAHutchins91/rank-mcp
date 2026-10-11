@@ -30,25 +30,68 @@ function periodEndIso(object: Json) {
   return null;
 }
 
-export function stripeEventUserId(event: { type?: string; data?: { object?: Json } }) {
+/** Stamped on every Rank checkout session and subscription. The Stripe account is shared with other apps. */
+export const RANK_APP = "rank";
+
+export type StripeEventScope = { appBaseUrl: string; stripePriceMonthly: string; stripePriceYearly: string };
+
+function metadataOf(object: Json): Json {
+  return object.metadata && typeof object.metadata === "object" ? object.metadata as Json : {};
+}
+
+/** Every price id on a subscription (items.data[].price as a string or an object). */
+export function subscriptionPriceIds(object: Json): string[] {
+  const items = object.items && typeof object.items === "object" ? object.items as { data?: unknown } : {};
+  const data = Array.isArray(items.data) ? items.data : [];
+  return data.map((item) => {
+    const price = item && typeof item === "object" ? (item as Json).price : undefined;
+    if (typeof price === "string") return price;
+    if (price && typeof price === "object" && typeof (price as Json).id === "string") return (price as Json).id as string;
+    return "";
+  });
+}
+
+function isRankCheckout(object: Json, scope: StripeEventScope) {
+  const success = typeof object.success_url === "string" ? object.success_url : "";
+  const accountUrl = `${scope.appBaseUrl.replace(/\/$/, "")}/account`;
+  const ownSuccess = success === accountUrl || success.startsWith(`${accountUrl}?`) || success.startsWith(`${accountUrl}/`);
+  return metadataOf(object).app === RANK_APP && ownSuccess;
+}
+
+function isRankSubscription(object: Json, scope: StripeEventScope) {
+  const allowed = [scope.stripePriceMonthly, scope.stripePriceYearly].filter(Boolean);
+  const prices = subscriptionPriceIds(object);
+  return allowed.length > 0 && prices.length > 0 && prices.every((price) => allowed.includes(price));
+}
+
+const SUBSCRIPTION_EVENTS = new Set(["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"]);
+
+/**
+ * The Rank user an event belongs to, or null when the event is not provably Rank's.
+ * Checkout: metadata.app=rank, success_url under ${appBaseUrl}/account, and metadata.rank_user_id.
+ * Subscriptions: every item price is a Rank price, and metadata.rank_user_id.
+ * client_reference_id alone is never trusted: other apps on the account set it to their own user ids.
+ */
+export function stripeEventUserId(event: { type?: string; data?: { object?: Json } }, scope: StripeEventScope) {
   const object = event.data?.object;
   if (!object || !event.type) return null;
   if (event.type === "checkout.session.completed") {
-    return stringField(object.client_reference_id) ?? stringField((object.metadata as Json | undefined)?.rank_user_id);
+    if (!isRankCheckout(object, scope)) return null;
+    return stringField(metadataOf(object).rank_user_id);
   }
-  if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
-    return stringField(((object.metadata ?? {}) as Json).rank_user_id);
+  if (SUBSCRIPTION_EVENTS.has(event.type)) {
+    if (!isRankSubscription(object, scope)) return null;
+    return stringField(metadataOf(object).rank_user_id);
   }
   return null;
 }
 
-export function applyStripeEvent(user: UserRecord, event: { type?: string; data?: { object?: Json } }, now: Date): UserRecord | null {
+export function applyStripeEvent(user: UserRecord, event: { type?: string; data?: { object?: Json } }, now: Date, scope: StripeEventScope): UserRecord | null {
   const object = event.data?.object;
   if (!object || !event.type) return null;
+  if (stripeEventUserId(event, scope) !== user.id) return null;
   const next: UserRecord = { ...user, updatedAt: now.toISOString() };
   if (event.type === "checkout.session.completed") {
-    const userId = stringField(object.client_reference_id) ?? stringField((object.metadata as Json | undefined)?.rank_user_id);
-    if (userId !== user.id) return null;
     const customer = stringField(object.customer);
     const subscription = stringField(object.subscription);
     if (customer) next.stripeCustomerId = customer;
@@ -58,11 +101,11 @@ export function applyStripeEvent(user: UserRecord, event: { type?: string; data?
     }
     return next;
   }
-  if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
-    const metadata = (object.metadata ?? {}) as Json;
-    const userId = stringField(metadata.rank_user_id);
-    if (userId !== user.id) return null;
+  if (SUBSCRIPTION_EVENTS.has(event.type)) {
     const customer = stringField(object.customer);
+    // Subscriptions from before the app marker carry only rank_user_id, so those must match the customer we stored.
+    const marked = metadataOf(object).app === RANK_APP;
+    if (!marked && user.stripeCustomerId && customer !== user.stripeCustomerId) return null;
     if (customer) next.stripeCustomerId = customer;
     if (typeof object.id === "string") next.stripeSubscriptionId = object.id;
     if (typeof object.status === "string") next.subscriptionStatus = object.status;
@@ -83,7 +126,9 @@ export function buildCheckoutParams(config: AppConfig, user: UserRecord, plan: "
   params.set("line_items[0][price]", price);
   params.set("line_items[0][quantity]", "1");
   params.set("client_reference_id", user.id);
+  params.set("metadata[app]", RANK_APP);
   params.set("metadata[rank_user_id]", user.id);
+  params.set("subscription_data[metadata][app]", RANK_APP);
   params.set("subscription_data[metadata][rank_user_id]", user.id);
   params.set("success_url", `${config.appBaseUrl}/account?checkout=success`);
   params.set("cancel_url", `${config.appBaseUrl}/account?checkout=cancelled`);

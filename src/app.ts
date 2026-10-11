@@ -112,11 +112,11 @@ export function createApp(options: CreateAppOptions = {}) {
       const signature = req.header("stripe-signature");
       if (!signature || !Buffer.isBuffer(req.body)) return res.status(400).send("Missing Stripe signature");
       const event = verifyStripeEvent(req.body, signature, config.stripeWebhookSecret, now().getTime());
-      const userId = stripeEventUserId(event);
+      const userId = stripeEventUserId(event, config);
       if (userId) {
         const user = await getUser(store, userId);
         if (user) {
-          const updated = applyStripeEvent(user, event, now());
+          const updated = applyStripeEvent(user, event, now(), config);
           if (updated) await store.put("users", updated.id, updated);
         }
       }
