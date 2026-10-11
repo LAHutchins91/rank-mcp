@@ -309,6 +309,43 @@ describe("streamable HTTP", () => {
     expect(location.searchParams.get("prompt")).toBe("consent");
   });
 
+  it("registers a client_secret_post client with an https redirect and enforces its secret", async () => {
+    const redirect = "https://abacus.ai/oauth/callback";
+    const meta = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json() as { token_endpoint_auth_methods_supported: string[] };
+    expect(meta.token_endpoint_auth_methods_supported).toEqual(["none", "client_secret_post"]);
+    const basic = await fetch(`${base}/register`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ redirect_uris: [redirect], token_endpoint_auth_method: "client_secret_basic" }) });
+    expect(basic.status).toBe(400);
+    const registered = await fetch(`${base}/register`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ client_name: "MCP rank", redirect_uris: [redirect], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "client_secret_post" }) });
+    expect(registered.status).toBe(201);
+    const client = await registered.json() as { client_id: string; client_secret: string; token_endpoint_auth_method: string };
+    expect(client.token_endpoint_auth_method).toBe("client_secret_post");
+    expect(client.client_secret.length).toBeGreaterThan(20);
+    const stored = await store.get("clients", client.client_id);
+    expect(JSON.stringify(stored)).not.toContain(client.client_secret);
+    const code = async () => {
+      const { verifier, challenge } = pkce();
+      const authorize = new URL(`${base}/authorize`);
+      for (const [k, v] of Object.entries({ response_type: "code", client_id: client.client_id, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: "S256", state: "s", scope: "rank", resource: "http://127.0.0.1:44721/mcp", test_subject: "owner" })) authorize.searchParams.set(k, v);
+      const location = new URL((await fetch(authorize, { redirect: "manual" })).headers.get("location") ?? "");
+      expect(location.origin + location.pathname).toBe(redirect);
+      return { verifier, code: location.searchParams.get("code") ?? "" };
+    };
+    const exchange = (c: { verifier: string; code: string }, secret?: string) => fetch(`${base}/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "authorization_code", code: c.code, redirect_uri: redirect, client_id: client.client_id, code_verifier: c.verifier, ...(secret === undefined ? {} : { client_secret: secret }) }) });
+    expect((await exchange(await code())).status).toBe(401);
+    expect((await exchange(await code(), "wrong-secret")).status).toBe(401);
+    const ok = await exchange(await code(), client.client_secret);
+    expect(ok.status).toBe(200);
+    const token = await ok.json() as { access_token: string; refresh_token: string };
+    const refreshNoSecret = await fetch(`${base}/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: token.refresh_token, client_id: client.client_id }) });
+    expect(refreshNoSecret.status).toBe(401);
+    const properties = await callTool(token.access_token, "list_properties", {});
+    expect(properties.result.isError).toBeFalsy();
+  });
+
   it("rejects a public http redirect and a bad PKCE verifier", async () => {
     const evil = await fetch(`${base}/register`, {
       method: "POST",

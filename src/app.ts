@@ -226,7 +226,7 @@ export function createApp(options: CreateAppOptions = {}) {
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256"],
-    token_endpoint_auth_methods_supported: ["none"],
+    token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
     scopes_supported: [MCP_SCOPE],
     service_documentation: `${config.appBaseUrl}/connect`
   };
@@ -295,19 +295,27 @@ export function createApp(options: CreateAppOptions = {}) {
     if (!allow(`register:${req.ip}`, 30, 60 * 60 * 1000)) return res.status(429).json({ error: "slow_down" });
     const redirectUris = Array.isArray(req.body?.redirect_uris) ? req.body.redirect_uris.filter((uri: unknown): uri is string => typeof uri === "string") : [];
     const method = req.body?.token_endpoint_auth_method;
-    if (!redirectUris.length || redirectUris.length > 10 || redirectUris.some((uri: string) => !allowedClientRedirect(uri)) || (method && method !== "none")) {
+    // Public clients (none) and confidential clients that post their secret (Abacus.AI ChatLLM) are accepted.
+    if (!redirectUris.length || redirectUris.length > 10 || redirectUris.some((uri: string) => !allowedClientRedirect(uri)) || (method && method !== "none" && method !== "client_secret_post")) {
       return res.status(400).json({ error: "invalid_client_metadata" });
     }
+    const authMethod = method === "client_secret_post" ? "client_secret_post" : "none";
     const clientId = randomToken(16);
+    const clientSecret = authMethod === "client_secret_post" ? randomToken(32) : undefined;
     const clientName = typeof req.body?.client_name === "string" && req.body.client_name.trim() ? req.body.client_name.trim().slice(0, 200) : "MCP client";
-    await store.put("clients", clientId, { clientId, clientName, redirectUris, createdAt: now().toISOString() });
+    await store.put("clients", clientId, {
+      clientId, clientName, redirectUris, createdAt: now().toISOString(),
+      tokenEndpointAuthMethod: authMethod,
+      ...(clientSecret ? { clientSecretHash: sha256(clientSecret) } : {})
+    });
     res.status(201).json({
       client_id: clientId,
+      ...(clientSecret ? { client_secret: clientSecret, client_secret_expires_at: 0 } : {}),
       client_name: clientName,
       redirect_uris: redirectUris,
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      token_endpoint_auth_method: "none",
+      token_endpoint_auth_method: authMethod,
       scope: MCP_SCOPE
     });
   });
@@ -464,6 +472,11 @@ export function createApp(options: CreateAppOptions = {}) {
     const clientId = String(req.body?.client_id ?? "");
     const client = await store.get("clients", clientId);
     if (!client) return res.status(400).json({ error: "invalid_client" });
+    if (client.tokenEndpointAuthMethod === "client_secret_post") {
+      const presented = typeof req.body?.client_secret === "string" ? req.body.client_secret : "";
+      const expected = typeof client.clientSecretHash === "string" ? client.clientSecretHash : "";
+      if (!presented || !expected || !safeEqual(sha256(presented), expected)) return res.status(401).json({ error: "invalid_client" });
+    }
     const resource = typeof req.body?.resource === "string" ? req.body.resource : "";
     if (resource && resource !== `${config.appBaseUrl}/mcp`) return res.status(400).json({ error: "invalid_target" });
     const grant = String(req.body?.grant_type ?? "");
